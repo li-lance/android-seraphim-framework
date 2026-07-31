@@ -11,7 +11,7 @@
       projects/ = 各项目独立子仓组，新项目在此追加           -->
 
     <!-- 平台级 -->
-    <project name="seraphim-build.git" path="build" revision="master" />
+    <project name="build-logic.git" path="build-logic" revision="master" />
 
     <!-- 项目：DailyLog 每日任务 -->
     <project name="dailylog-shared.git" path="projects/dailylog/shared" revision="master" />
