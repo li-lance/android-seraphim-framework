@@ -2,13 +2,14 @@
 <manifest>
     <remote name="origin"
         fetch="git@github.com:li-lance/" />
-    <default revision="master"
+    <default revision="main"
         remote="origin"
         sync-j="4" />
-<!--    <project name="android-seraphim-music.git" path="." revision="master" />-->
-    <project name="build-logic.git" path="build-logic" revision="master"/>
-    <project name="gradle.git" path="gradle" revision="master"/>
-    <project name="utils.git" path="utils" revision="master"/>
-    <project name="permissions.git" path="core/permissions" revision="master" />
-    <project name="android-seraphim-map.git" path="core/map" revision="master" />
+<!--  DailyLog 每日任务应用 · 多仓模式 · 共享逻辑 + 原生 UI
+      顶层仓库 = 工作区编排（清单 + 文档 + 聚合构建）
+      各子仓独立演进，通过 repo 工具同步到本工作区            -->
+    <project name="dailylog-build.git" path="build" revision="main" />
+    <project name="dailylog-shared.git" path="shared" revision="main" />
+    <project name="dailylog-android.git" path="apps/android" revision="main" />
+    <project name="dailylog-ios.git" path="apps/ios" revision="main" />
 </manifest>

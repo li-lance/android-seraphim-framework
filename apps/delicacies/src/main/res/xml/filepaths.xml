@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<paths>
-    <files-path
-        name="shared_logs"
-        path="logs/" />
-    <cache-path name="code_cache" path="code_cache/" />
-</paths>

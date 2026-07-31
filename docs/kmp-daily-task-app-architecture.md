@@ -58,13 +58,29 @@
 
 这是一个**个人任务记录工具**：页面以列表/表单/日历为主，无复杂平台专属 UI，单人或小团队维护。因此：
 
-> **路线 B（全共享 CMP UI）为主，MVI + Shared ViewModel，SQLDelight 本地优先存储，Koin DI，Navigation3 导航。**
+> **路线 A（共享逻辑 + 原生 UI），MVI + Shared ViewModel，SQLDelight 本地优先存储，Koin DI；多仓模式（repo 工具）管理。**
 >
-> 理由：代码复用最大化、单一技术栈、CMP iOS 已 Stable；若未来某页面需要深度原生能力，可局部降级为路线 C。
+> 决策记录（v2，2026-07-31）：放弃初稿的路线 B。理由：① 100% 原生体验与无障碍，iOS 用 SwiftUI 无 Skia 渲染差异；② 团队现有工作流就是 repo 工具多仓模式，子仓独立演进；③ STRV 等生产实践验证「共享逻辑 + 原生 UI + monorepo/多仓」是风险最低的组合。Navigation3 不再适用（UI 不共享），导航归各平台原生（Android: Navigation3/Jetpack Navigation，iOS: SwiftUI NavigationStack）。
 
 ---
 
-## 3. 从零设计：每日任务应用「DailyLog」
+## 3. 从零设计：每日任务应用「DailyLog」（多仓模式）
+
+### 3.0 仓库拓扑（repo 工具）
+
+```
+android-seraphim-framework (顶层仓 = 工作区编排)
+├── manifests/default.xml   # repo 清单（唯一事实源）
+├── docs/                   # 架构文档
+└── <以下子仓由 repo sync 拉取>
+    ├── build/              # dailylog-build.git     · 约定插件 + 版本目录
+    ├── shared/             # dailylog-shared.git    · KMP 共享逻辑层
+    └── apps/
+        ├── android/        # dailylog-android.git   · 原生 Android (Compose)
+        └── ios/            # dailylog-ios.git       · 原生 iOS (SwiftUI + Xcode)
+```
+
+规则：子仓各自独立构建、独立发版；`shared` 以源码方式被 Android 端复合构建（`includeBuild`）消费，iOS 端以 XCFramework 消费；跨仓契约（Shared 的公开 API）变更需在顶层仓 docs 记录。
 
 ### 3.1 产品范围（MVP → 进阶）
 
@@ -73,50 +89,52 @@
 - **V1.2**：统计视图（完成率、连续打卡 streak）、深色模式、数据导出
 - **V2.0**：可选云同步（端到端加密）、桌面端、小组件
 
-### 3.2 架构总览
+### 3.2 架构总览（共享逻辑 + 原生 UI）
 
 ```
-┌─────────────────────────────────────────────────┐
-│  androidApp / iosApp / desktopApp (薄壳入口)      │
-├─────────────────────────────────────────────────┤
-│  composeApp (CMP UI 层)                          │
-│   ├─ ui/screens     页面 Composable ( dumb )     │
-│   ├─ ui/components  设计系统组件                  │
-│   └─ navigation     Navigation3 路由             │
-├─────────────────────────────────────────────────┤
-│  shared (commonMain 逻辑层 —— 全部 MVI)           │
-│   ├─ presentation   Shared ViewModel:            │
-│   │                 Intent → State (StateFlow)   │
-│   │                 + Effect (一次性事件)          │
-│   ├─ domain         UseCase / 业务规则 / 模型     │
-│   ├─ data           Repository 实现              │
-│   │   ├─ local      SQLDelight (.sq)             │
-│   │   └─ prefs      DataStore                   │
-│   └─ di             Koin modules                 │
-└─────────────────────────────────────────────────┘
+┌───────────────────────────┐   ┌───────────────────────────┐
+│  apps/android (Compose)   │   │  apps/ios (SwiftUI)       │
+│  · Screens (dumb)         │   │  · Views (dumb)           │
+│  · Navigation3            │   │  · NavigationStack        │
+│  · 观察 StateFlow          │   │  · 经 SKIE 观察 Flow       │
+└─────────────┬─────────────┘   └─────────────┬─────────────┘
+              │  includeBuild 复合构建          │  XCFramework
+┌─────────────┴───────────────────────────────┴─────────────┐
+│  shared (dailylog-shared.git · commonMain 逻辑层 — 全 MVI) │
+│   ├─ presentation   Shared ViewModel:                     │
+│   │                 Intent → State (StateFlow)            │
+│   │                 + Effect (一次性事件)                  │
+│   ├─ domain         UseCase / 业务规则 / 模型              │
+│   ├─ data           Repository 实现                        │
+│   │   ├─ local      SQLDelight (.sq)                      │
+│   │   └─ prefs      DataStore                            │
+│   └─ di             Koin modules                          │
+└───────────────────────────────────────────────────────────┘
 ```
 
 **单向数据流**：`UI → Intent → ViewModel(reduce) → ViewState(StateFlow) → UI`；
 副作用（toast、导航、提醒调度）走独立 `Effect` 通道（SharedFlow），避免状态里塞一次性事件。
 
-### 3.3 模块划分（Gradle）
+### 3.3 各仓内部结构
 
 ```
-root
-├── androidApp/          # Android 入口 (Activity)
-├── iosApp/              # Xcode 工程 (SwiftUI 壳或 CMP 直接启动)
-├── desktopApp/          # JVM 入口
-├── composeApp/          # 全部 UI（commonMain）
-└── shared/              # 全部逻辑（commonMain 优先）
-    └── src/
-        ├── commonMain/  # ViewModel / domain / data / di
-        ├── commonTest/  # 共享单元测试（一次编写全端跑）
-        ├── androidMain/ # expect/actual: 通知、文件、DriverFactory
-        ├── iosMain/     # expect/actual 实现
-        └── desktopMain/ # expect/actual 实现
+shared/                    # KMP 库仓（独立 Gradle 构建，产出 Android AAR + iOS XCFramework）
+└── src/
+    ├── commonMain/        # ViewModel / domain / data / di（逻辑能放这就放这）
+    ├── commonTest/        # 共享单元测试（一次编写全端跑）
+    ├── androidMain/       # expect/actual: DriverFactory、通知调度入口
+    └── iosMain/           # expect/actual 实现（nativeMain）
+
+apps/android/              # 原生 Android 仓（Jetpack Compose + Navigation3）
+└── app/src/main/          # Screens / theme / platform 集成；ViewModel 来自 shared
+
+apps/ios/                  # 原生 iOS 仓（SwiftUI + Xcode 工程）
+└── DailyLog/              # Views / ObservableObject 包装 / 平台集成；逻辑来自 shared XCFramework
+
+build/                     # 构建设施仓（约定插件 + gradle/libs.versions.toml 版本目录）
 ```
 
-原则：逻辑能放 `commonMain` 就放 `commonMain`，`expect/actual` 只用于真正平台相关的窄接口（通知调度、数据库驱动、文件导出）。
+原则：逻辑能放 `commonMain` 就放 `commonMain`，`expect/actual` 只用于真正平台相关的窄接口（通知调度、数据库驱动、文件导出）；UI、导航、生命周期全部留在平台侧，共享层只暴露状态流与 Intent 入口。
 
 ### 3.4 数据模型（SQLDelight `.sq` 草案）
 
@@ -184,18 +202,18 @@ class TaskListViewModel(
 
 ### 3.7 测试与 CI
 
-- **commonTest**：UseCase、reducer、Repository（内存 Driver）——一次编写，Android/iOS/Desktop 三端同跑
-- **CI（GitHub Actions）**：Linux runner 跑 Android/Desktop 编译与测试；macOS runner 仅编译 iOS framework + iOS 测试
+- **commonTest**：UseCase、reducer、Repository（内存 Driver）——一次编写，Android/iOS 双端同跑
+- **CI（GitHub Actions）**：每仓独立流水线；`shared` 在 Linux runner 跑 Android 编译与测试、macOS runner 编译 XCFramework；`apps/ios` 必须 macOS runner
 - 本机注意：Windows 无法编译 iOS 产物，iOS 端验证需在 macOS 或 CI 上进行
 
 ### 3.8 实施路线图
 
 | 阶段 | 内容 | 验收 |
 |---|---|---|
-| P0 脚手架 | Gradle 模块、版本目录、Koin、SQLDelight、Navigation3、CMP 三端跑通空页面 | 三端 Hello World |
+| P0 仓库就位 | 创建 4 个 GitHub 空仓 → `repo sync` → 各仓最小可构建骨架（build 仓约定插件 + 版本目录先行） | 四仓同步成功、shared 空库编译通过 |
 | P1 数据层 | .sq 建模、Repository、commonTest 覆盖 | 单测通过 |
-| P2 今日任务 | TaskList MVI + 页面（列表/勾选/删除撤销） | 三端可用 |
-| P3 编辑与日历 | 编辑器页、日期切换（横向日历条） | MVP 完成 |
+| P2 今日任务 | shared 侧 TaskList MVI + Android 页面（列表/勾选/删除撤销） | Android 可用 |
+| P3 编辑与日历 + iOS | 编辑器、日期切换；iOS SwiftUI 壳接入 XCFramework（需 macOS） | MVP 完成 |
 | P4 打磨 | 统计、深色模式、导出、重复任务与提醒 | V1.x |
 
 ---
@@ -204,9 +222,10 @@ class TaskListViewModel(
 
 | # | 决策 | 理由 |
 |---|---|---|
-| 1 | 路线 B：CMP 全共享 UI | 工具类应用、复用最大化、CMP iOS 已 Stable |
+| 1 | ~~路线 B：CMP 全共享 UI~~ → **v2 改为路线 A：共享逻辑 + 原生 UI**（2026-07-31） | 原生体验/无障碍最佳；与团队多仓工作流匹配；STRV 生产实践验证 |
 | 2 | MVI + Shared ViewModel | UDF 契合声明式 UI；行业标准；可共享 85% 表现逻辑 |
 | 3 | SQLDelight 而非 Room | 从 0 开始、编译期 SQL 校验、全平台一致；软删除为同步铺路 |
 | 4 | Koin DI | KMP 最成熟、iOS 配置简单、无重代码生成 |
-| 5 | Navigation3 | 官方多平台导航，避免三方库长期维护风险 |
+| 5 | ~~Navigation3 共享导航~~ → **导航归平台原生**（Android Navigation3 / iOS NavigationStack） | UI 不共享后共享导航失去意义（v2） |
 | 6 | 本地优先、可选云同步 | 个人数据工具先做可靠本地存储，同步作为 V2 增量 |
+| 7 | 保留 repo 工具多仓模式（v2） | 子仓独立演进；顶层仓只做编排（清单 + 文档）；build 仓统一约定插件与版本目录 |
