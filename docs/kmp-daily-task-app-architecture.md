@@ -66,21 +66,24 @@
 
 ## 3. 从零设计：每日任务应用「DailyLog」（多仓模式）
 
-### 3.0 仓库拓扑（repo 工具）
+### 3.0 仓库拓扑（repo 工具 · 多项目平台）
+
+> v3（2026-07-31）：本工作区是**多项目平台**，DailyLog 只是首个项目。构建设施上收为平台级，项目仓归入 `projects/` 命名空间。
 
 ```
-android-seraphim-framework (顶层仓 = 工作区编排)
+android-seraphim-framework (顶层仓 = 平台工作区编排)
 ├── manifests/default.xml   # repo 清单（唯一事实源）
 ├── docs/                   # 架构文档
 └── <以下子仓由 repo sync 拉取>
-    ├── build/              # dailylog-build.git     · 约定插件 + 版本目录
-    ├── shared/             # dailylog-shared.git    · KMP 共享逻辑层
-    └── apps/
-        ├── android/        # dailylog-android.git   · 原生 Android (Compose)
-        └── ios/            # dailylog-ios.git       · 原生 iOS (SwiftUI + Xcode)
+    ├── build/              # 【平台级】seraphim-build.git · 约定插件 + 版本目录（所有项目共用）
+    └── projects/
+        └── dailylog/       # 项目：DailyLog 每日任务
+            ├── shared/     #   dailylog-shared.git  · KMP 共享逻辑层
+            ├── android/    #   dailylog-android.git · 原生 Android (Compose)
+            └── ios/        #   dailylog-ios.git     · 原生 iOS (SwiftUI + Xcode)
 ```
 
-规则：子仓各自独立构建、独立发版；`shared` 以源码方式被 Android 端复合构建（`includeBuild`）消费，iOS 端以 XCFramework 消费；跨仓契约（Shared 的公开 API）变更需在顶层仓 docs 记录。
+规则：子仓各自独立构建、独立发版；`shared` 以源码方式被 Android 端复合构建（`includeBuild`）消费，iOS 端以 XCFramework 消费；跨仓契约（Shared 的公开 API）变更需在顶层仓 docs 记录；新增项目在清单的 `projects/<name>/` 下追加子仓条目，构建设施复用平台级 `build/` 仓。
 
 ### 3.1 产品范围（MVP → 进阶）
 

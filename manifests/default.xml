@@ -5,11 +5,16 @@
     <default revision="master"
         remote="origin"
         sync-j="4" />
-<!--  DailyLog 每日任务应用 · 多仓模式 · 共享逻辑 + 原生 UI
-      顶层仓库 = 工作区编排（清单 + 文档 + 聚合构建）
-      各子仓独立演进，通过 repo 工具同步到本工作区            -->
-    <project name="dailylog-build.git" path="build" revision="master" />
-    <project name="dailylog-shared.git" path="shared" revision="master" />
-    <project name="dailylog-android.git" path="apps/android" revision="master" />
-    <project name="dailylog-ios.git" path="apps/ios" revision="master" />
+<!--  Seraphim 多项目平台 · 共享逻辑 + 原生 UI
+      顶层仓库 = 工作区编排（清单 + 文档）
+      build/    = 平台级构建设施（所有项目共用）
+      projects/ = 各项目独立子仓组，新项目在此追加           -->
+
+    <!-- 平台级 -->
+    <project name="seraphim-build.git" path="build" revision="master" />
+
+    <!-- 项目：DailyLog 每日任务 -->
+    <project name="dailylog-shared.git" path="projects/dailylog/shared" revision="master" />
+    <project name="dailylog-android.git" path="projects/dailylog/android" revision="master" />
+    <project name="dailylog-ios.git" path="projects/dailylog/ios" revision="master" />
 </manifest>
