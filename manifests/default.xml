@@ -2,14 +2,14 @@
 <manifest>
     <remote name="origin"
         fetch="git@github.com:li-lance/" />
-    <default revision="main"
+    <default revision="master"
         remote="origin"
         sync-j="4" />
 <!--  DailyLog 每日任务应用 · 多仓模式 · 共享逻辑 + 原生 UI
       顶层仓库 = 工作区编排（清单 + 文档 + 聚合构建）
       各子仓独立演进，通过 repo 工具同步到本工作区            -->
-    <project name="dailylog-build.git" path="build" revision="main" />
-    <project name="dailylog-shared.git" path="shared" revision="main" />
-    <project name="dailylog-android.git" path="apps/android" revision="main" />
-    <project name="dailylog-ios.git" path="apps/ios" revision="main" />
+    <project name="dailylog-build.git" path="build" revision="master" />
+    <project name="dailylog-shared.git" path="shared" revision="master" />
+    <project name="dailylog-android.git" path="apps/android" revision="master" />
+    <project name="dailylog-ios.git" path="apps/ios" revision="master" />
 </manifest>
